@@ -111,12 +111,25 @@ phase_collect() {
     fi
   done < <(
     find "$HOME_DIR" \
-      -path "$HOME/Library"      -prune -o \
-      -path "$HOME/.Trash"       -prune -o \
-      -path "$HOME/.npm"         -prune -o \
-      -path "$HOME/.cache"       -prune -o \
-      -path "$HOME/node_modules" -prune -o \
-      -path "$DEST"              -prune -o \
+      -path "$HOME/Library"        -prune -o \
+      -path "$HOME/.Trash"         -prune -o \
+      -path "$HOME/.npm"           -prune -o \
+      -path "$HOME/.cache"         -prune -o \
+      -path "$HOME/.cursor"        -prune -o \
+      -path "$HOME/.lmstudio"      -prune -o \
+      -path "$HOME/.nuget"         -prune -o \
+      -path "$HOME/.platformio"    -prune -o \
+      -path "$HOME/.local"         -prune -o \
+      -path "$HOME/.dotnet"        -prune -o \
+      -path "$HOME/.ServiceHub"    -prune -o \
+      -path "$HOME/.claude"        -prune -o \
+      -path "$HOME/.config"        -prune -o \
+      -path "$HOME/node_modules"   -prune -o \
+      -name "node_modules"         -prune -o \
+      -name ".git"                 -prune -o \
+      -name "bin"                  -prune -o \
+      -name "obj"                  -prune -o \
+      -path "$DEST"                -prune -o \
       \( \
         -name "*[Cc][Oo][Mm][Pp][0-9]*"                 -o \
         -name "*[Pp][Rr][Oo][Jj][Ee][Cc][Tt]*"          -o \
