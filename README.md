@@ -32,6 +32,11 @@ bash collect_semester.sh --cleanup
 bash collect_semester.sh --setup
 ```
 
+### To Cancel the setup prompts
+
+Ctrl + C
+
+
 ---
 
 ## Setup wizard
