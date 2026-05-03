@@ -1,151 +1,23 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
 # collect_semester.sh
-# Collects Year-2 Semester-2 school content (Sept 2025 – Apr 2026) from
-# the entire home directory into a single folder ready to archive.
+# Scans your Mac for semester school files, syncs them to your SSD,
+# and optionally deletes the local originals to free up space.
+#
+# Usage:
+#   bash collect_semester.sh            # collect + sync only
+#   bash collect_semester.sh --cleanup  # collect + sync + delete local files
 # ---------------------------------------------------------------------------
 
-set -euo pipefail
+set -uo pipefail
 
-# ── Config ──────────────────────────────────────────────────────────────────
-HOME_DIR="$HOME"
-DEST="$HOME/Y2S2_Semester_Backup"
-LOG="$DEST/_collection_log.txt"
+# ── UPDATE THESE EACH SEMESTER ───────────────────────────────────────────────
+BACKUP_FOLDER_NAME="Y2S2_Semester_Backup"   # label for the backup folder
+START_DATE="2025-09-01"                      # semester start
+END_DATE="2026-04-30"                        # semester end
+SSD_NAME="X10 Pro"                           # your SSD name as shown in Finder
 
-# Date window: Sept 1 2025 – Apr 30 2026
-START_DATE="2025-09-01"
-END_DATE="2026-04-30"
-
-# Name patterns that indicate school work (case-insensitive)
-# Matches: comp followed by digits, or words project/assignment/lab/term
-NAME_PATTERNS=(
-  "*[Cc][Oo][Mm][Pp][0-9]*"
-  "*[Pp][Rr][Oo][Jj][Ee][Cc][Tt]*"
-  "*[Aa][Ss][Ss][Ii][Gg][Nn][Mm][Ee][Nn][Tt]*"
-  "*[Ll][Aa][Bb][_-]*"
-  "*[Ll][Aa][Bb][0-9]*"
-  "*[Tt][Ee][Rr][Mm][-_][Pp][Rr][Oo][Jj]*"
-  "*[Ss][Cc][Hh][Oo][Oo][Ll]*"
-  "*[Ss][Ee][Mm][Ee][Ss][Tt][Ee][Rr]*"
-  "*labtest*"
-  "*[Ff][Ii][Nn][Aa][Ll][-_][Pp][Rr][Oo][Jj]*"
-  "*[Ff][Ii][Nn][Aa][Ll][-_][Rr][Ee][Pp][Oo][Rr][Tt]*"
-  "*[Ww][Ee][Ee][Kk][Ll][Yy][-_][Pp][Rr][Oo][Gg][Rr][Ee][Ss][Ss]*"
-  "*[Mm][Ii][Dd][Tt][Ee][Rr][Mm]*"
-  "*[Ss][Ee][Nn][Ee][Cc][Aa]*"
-)
-
-# Directories to always skip (system/cache noise)
-SKIP_DIRS=(
-  "$HOME/Library"
-  "$HOME/.Trash"
-  "$HOME/node_modules"
-  "$HOME/.npm"
-  "$HOME/.cache"
-  "$HOME/.git"
-)
-
-# ── Helpers ──────────────────────────────────────────────────────────────────
-in_date_range() {
-  local file="$1"
-  local mtime
-  mtime=$(stat -f "%Sm" -t "%Y-%m-%d" "$file" 2>/dev/null || echo "0000-00-00")
-  [[ "$mtime" > "$START_DATE" || "$mtime" == "$START_DATE" ]] && \
-  [[ "$mtime" < "$END_DATE"   || "$mtime" == "$END_DATE"   ]]
-}
-
-copy_item() {
-  local src="$1"
-  # Compute a relative path from HOME so the folder structure is preserved
-  local rel="${src#$HOME_DIR/}"
-  local dst_dir="$DEST/$(dirname "$rel")"
-  mkdir -p "$dst_dir"
-  cp -R "$src" "$dst_dir/" 2>/dev/null && \
-    echo "COPIED  $rel" >> "$LOG" || \
-    echo "FAILED  $rel" >> "$LOG"
-}
-
-build_skip_prune() {
-  local args=()
-  for d in "${SKIP_DIRS[@]}"; do
-    args+=( -path "$d" -prune -o )
-  done
-  printf '%s\n' "${args[@]}"
-}
-
-# ── Setup ────────────────────────────────────────────────────────────────────
-mkdir -p "$DEST"
-echo "=== Y2S2 Collection Log  $(date) ===" > "$LOG"
-echo "Source      : $HOME_DIR"              >> "$LOG"
-echo "Destination : $DEST"                  >> "$LOG"
-echo "Date window : $START_DATE – $END_DATE" >> "$LOG"
-echo "========================================" >> "$LOG"
-
-echo ""
-echo "Starting scan of $HOME_DIR ..."
-echo "Output folder: $DEST"
-echo ""
-
-# ── Main scan ────────────────────────────────────────────────────────────────
-FOUND=0
-SKIPPED=0
-
-# Build the -name OR chain for find
-build_name_expr() {
-  local expr=()
-  local first=true
-  for pat in "${NAME_PATTERNS[@]}"; do
-    if $first; then
-      expr+=( -name "$pat" )
-      first=false
-    else
-      expr+=( -o -name "$pat" )
-    fi
-  done
-  printf '%s\n' "${expr[@]}"
-}
-
-# Use find with pruning, then filter by date in shell
-while IFS= read -r -d '' item; do
-  # Skip anything inside the destination folder itself
-  [[ "$item" == "$DEST"* ]] && continue
-
-  if in_date_range "$item"; then
-    copy_item "$item"
-    (( FOUND++ ))
-    echo "  [+] ${item#$HOME_DIR/}"
-  else
-    (( SKIPPED++ ))
-    echo "  [ ] SKIPPED (date out of range): ${item#$HOME_DIR/}" >> "$LOG"
-  fi
-done < <(
-  find "$HOME_DIR" \
-    -path "$HOME/Library" -prune -o \
-    -path "$HOME/.Trash" -prune -o \
-    -path "$HOME/.npm" -prune -o \
-    -path "$HOME/.cache" -prune -o \
-    -path "$HOME/node_modules" -prune -o \
-    -path "$DEST" -prune -o \
-    \( \
-      -name "*[Cc][Oo][Mm][Pp][0-9]*" -o \
-      -name "*[Pp][Rr][Oo][Jj][Ee][Cc][Tt]*" -o \
-      -name "*[Aa][Ss][Ss][Ii][Gg][Nn][Mm][Ee][Nn][Tt]*" -o \
-      -name "*[Ll][Aa][Bb][_-]*"      -o \
-      -name "*[Ll][Aa][Bb][0-9]*"     -o \
-      -name "*labtest*"               -o \
-      -name "*[Tt][Ee][Rr][Mm][-_][Pp]*" -o \
-      -name "*[Ff][Ii][Nn][Aa][Ll][-_][Pp][Rr][Oo][Jj]*" -o \
-      -name "*[Ff][Ii][Nn][Aa][Ll][-_][Rr][Ee][Pp][Oo][Rr][Tt]*" -o \
-      -name "*[Mm][Ii][Dd][Tt][Ee][Rr][Mm]*" -o \
-      -name "*[Ss][Ee][Nn][Ee][Cc][Aa]*" -o \
-      -name "*[Ww][Ee][Ee][Kk][Ll][Yy][-_][Pp][Rr][Oo][Gg]*" \
-    \) \
-    -print0 2>/dev/null
-)
-
-# ── Also copy known school top-level folders (they may predate the window) ──
-echo ""
-echo "Checking known top-level school folders..."
+# ── Known top-level project folders to always include ────────────────────────
 KNOWN_FOLDERS=(
   "comp2080-project"
   "comp2152-termproject"
@@ -158,50 +30,243 @@ KNOWN_FOLDERS=(
   "portfolio"
 )
 
-for folder in "${KNOWN_FOLDERS[@]}"; do
-  src="$HOME_DIR/$folder"
-  if [ -e "$src" ]; then
-    mkdir -p "$DEST/top-level-projects"
-    cp -R "$src" "$DEST/top-level-projects/" 2>/dev/null && \
-      echo "COPIED  top-level/$folder" >> "$LOG" && \
-      echo "  [+] $folder (top-level known folder)" || \
-      echo "FAILED  top-level/$folder" >> "$LOG"
-    (( FOUND++ ))
-  fi
-done
+# ── Known Desktop folders to always include ───────────────────────────────────
+DESKTOP_FOLDERS=(
+  "COMP2139-ICE"
+  "Afterthebeep proj"
+  "Website Project 2025"
+  "assignment3"
+  "comp1202"
+  "lab_wk4"
+  "2025"
+  "assignment2comp1239"
+)
 
-# ── Desktop & Downloads school content (catch anything date-missed) ──
-echo ""
-echo "Checking Desktop for school content..."
-for src in \
-  "$HOME/Desktop/COMP2139-ICE" \
-  "$HOME/Desktop/Afterthebeep proj" \
-  "$HOME/Desktop/Website Project 2025" \
-  "$HOME/Desktop/assignment3" \
-  "$HOME/Desktop/comp1202" \
-  "$HOME/Desktop/lab_wk4" \
-  "$HOME/Desktop/2025" \
-  "$HOME/Desktop/assignment2comp1239" \
-; do
-  if [ -e "$src" ]; then
-    mkdir -p "$DEST/Desktop"
-    cp -R "$src" "$DEST/Desktop/" 2>/dev/null && \
-      echo "COPIED  Desktop/$(basename "$src")" >> "$LOG" && \
-      echo "  [+] Desktop/$(basename "$src")" || true
-    (( FOUND++ ))
-  fi
-done
+# ── Internal config (no need to edit below this line) ────────────────────────
+HOME_DIR="$HOME"
+DEST="$HOME/$BACKUP_FOLDER_NAME"
+SSD_DEST="/Volumes/$SSD_NAME/$BACKUP_FOLDER_NAME"
+LOG="$DEST/_collection_log.txt"
+DELETE_LIST="$DEST/_to_delete.txt"
+CLEANUP=false
 
-# ── Summary ──────────────────────────────────────────────────────────────────
+[[ "${1:-}" == "--cleanup" ]] && CLEANUP=true
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+in_date_range() {
+  local mtime
+  mtime=$(stat -f "%Sm" -t "%Y-%m-%d" "$1" 2>/dev/null || echo "0000-00-00")
+  [[ "$mtime" > "$START_DATE" || "$mtime" == "$START_DATE" ]] &&
+  [[ "$mtime" < "$END_DATE"   || "$mtime" == "$END_DATE"   ]]
+}
+
+copy_item() {
+  local src="$1"
+  local rel="${src#$HOME_DIR/}"
+  local dst_dir="$DEST/$(dirname "$rel")"
+  mkdir -p "$dst_dir"
+  if cp -R "$src" "$dst_dir/" 2>/dev/null; then
+    echo "COPIED  $rel" >> "$LOG"
+    echo "$src" >> "$DELETE_LIST"
+    return 0
+  else
+    echo "FAILED  $rel" >> "$LOG"
+    return 1
+  fi
+}
+
+print_header() {
+  echo ""
+  echo "========================================"
+  echo "  Semester Backup Tool"
+  echo "  Semester : $BACKUP_FOLDER_NAME"
+  echo "  Window   : $START_DATE → $END_DATE"
+  echo "  Cleanup  : $CLEANUP"
+  echo "========================================"
+  echo ""
+}
+
+# ── Phase 1: Collect ──────────────────────────────────────────────────────────
+phase_collect() {
+  mkdir -p "$DEST"
+  > "$DELETE_LIST"  # reset delete list
+  echo "=== Collection Log  $(date) ===" > "$LOG"
+  echo "Source      : $HOME_DIR"         >> "$LOG"
+  echo "Destination : $DEST"             >> "$LOG"
+  echo "Window      : $START_DATE – $END_DATE" >> "$LOG"
+  echo "========================================" >> "$LOG"
+
+  echo "[ Phase 1 ] Scanning $HOME_DIR ..."
+  echo ""
+
+  local found=0 skipped=0
+
+  while IFS= read -r -d '' item; do
+    [[ "$item" == "$DEST"* ]] && continue
+    if in_date_range "$item"; then
+      copy_item "$item" && (( found++ )) && echo "  [+] ${item#$HOME_DIR/}"
+    else
+      (( skipped++ ))
+      echo "SKIPPED (date) ${item#$HOME_DIR/}" >> "$LOG"
+    fi
+  done < <(
+    find "$HOME_DIR" \
+      -path "$HOME/Library"      -prune -o \
+      -path "$HOME/.Trash"       -prune -o \
+      -path "$HOME/.npm"         -prune -o \
+      -path "$HOME/.cache"       -prune -o \
+      -path "$HOME/node_modules" -prune -o \
+      -path "$DEST"              -prune -o \
+      \( \
+        -name "*[Cc][Oo][Mm][Pp][0-9]*"                 -o \
+        -name "*[Pp][Rr][Oo][Jj][Ee][Cc][Tt]*"          -o \
+        -name "*[Aa][Ss][Ss][Ii][Gg][Nn][Mm][Ee][Nn][Tt]*" -o \
+        -name "*[Ll][Aa][Bb][_-]*"                       -o \
+        -name "*[Ll][Aa][Bb][0-9]*"                      -o \
+        -name "*labtest*"                                -o \
+        -name "*[Tt][Ee][Rr][Mm][-_][Pp]*"              -o \
+        -name "*[Ff][Ii][Nn][Aa][Ll][-_][Pp][Rr][Oo][Jj]*" -o \
+        -name "*[Ff][Ii][Nn][Aa][Ll][-_][Rr][Ee][Pp][Oo][Rr][Tt]*" -o \
+        -name "*[Mm][Ii][Dd][Tt][Ee][Rr][Mm]*"          -o \
+        -name "*[Ss][Ee][Nn][Ee][Cc][Aa]*"               -o \
+        -name "*[Ww][Ee][Ee][Kk][Ll][Yy][-_][Pp][Rr][Oo][Gg]*" \
+      \) \
+      -print0 2>/dev/null
+  )
+
+  echo ""
+  echo "[ Phase 1 ] Checking known top-level folders..."
+  for folder in "${KNOWN_FOLDERS[@]}"; do
+    local src="$HOME_DIR/$folder"
+    if [ -e "$src" ]; then
+      mkdir -p "$DEST/top-level-projects"
+      if cp -R "$src" "$DEST/top-level-projects/" 2>/dev/null; then
+        echo "COPIED  top-level/$folder" >> "$LOG"
+        echo "$src" >> "$DELETE_LIST"
+        (( found++ ))
+        echo "  [+] $folder"
+      fi
+    fi
+  done
+
+  echo ""
+  echo "[ Phase 1 ] Checking Desktop folders..."
+  for folder in "${DESKTOP_FOLDERS[@]}"; do
+    local src="$HOME/Desktop/$folder"
+    if [ -e "$src" ]; then
+      mkdir -p "$DEST/Desktop"
+      if cp -R "$src" "$DEST/Desktop/" 2>/dev/null; then
+        echo "COPIED  Desktop/$folder" >> "$LOG"
+        echo "$src" >> "$DELETE_LIST"
+        (( found++ ))
+        echo "  [+] Desktop/$folder"
+      fi
+    fi
+  done
+
+  echo ""
+  echo "  Items collected : $found"
+  echo "  Date-skipped    : $skipped (see log)"
+  echo "  Backup folder   : $DEST"
+}
+
+# ── Phase 2: Sync to SSD ──────────────────────────────────────────────────────
+phase_sync() {
+  echo ""
+  echo "[ Phase 2 ] Syncing to SSD \"$SSD_NAME\" ..."
+
+  if [ ! -d "/Volumes/$SSD_NAME" ]; then
+    echo ""
+    echo "  ERROR: SSD \"$SSD_NAME\" is not mounted."
+    echo "  Plug in your X10 Pro SSD, then run:"
+    echo "    rsync -av --progress \"$DEST/\" \"$SSD_DEST/\""
+    echo ""
+    return 1
+  fi
+
+  mkdir -p "$SSD_DEST"
+  rsync -av --progress "$DEST/" "$SSD_DEST/"
+  echo ""
+  echo "  Sync complete -> $SSD_DEST"
+  return 0
+}
+
+# ── Phase 3: Cleanup local originals ─────────────────────────────────────────
+phase_cleanup() {
+  echo ""
+  echo "[ Phase 3 ] Cleanup requested."
+
+  # Verify the SSD backup actually exists and has content
+  if [ ! -d "$SSD_DEST" ] || [ -z "$(ls -A "$SSD_DEST" 2>/dev/null)" ]; then
+    echo ""
+    echo "  ABORTED: Cannot confirm backup on SSD. Local files were NOT deleted."
+    echo "  Make sure \"$SSD_NAME\" is mounted and the sync completed successfully."
+    return 1
+  fi
+
+  local count
+  count=$(wc -l < "$DELETE_LIST" | tr -d ' ')
+
+  echo ""
+  echo "  The following $count item(s) will be permanently deleted from your Mac:"
+  echo ""
+  while IFS= read -r path; do
+    echo "    - $path"
+  done < "$DELETE_LIST"
+  echo ""
+  echo "  The SSD backup at \"$SSD_DEST\" will be kept."
+  echo ""
+  read -r -p "  Type YES to confirm deletion: " confirm
+  echo ""
+
+  if [[ "$confirm" != "YES" ]]; then
+    echo "  Cancelled. No files were deleted."
+    return 0
+  fi
+
+  local deleted=0 failed=0
+  while IFS= read -r path; do
+    if [ -e "$path" ]; then
+      if rm -rf "$path" 2>/dev/null; then
+        echo "  DELETED  $path" >> "$LOG"
+        (( deleted++ ))
+        echo "  [-] $path"
+      else
+        echo "  FAILED   $path" >> "$LOG"
+        (( failed++ ))
+        echo "  [!] Could not delete: $path"
+      fi
+    fi
+  done < "$DELETE_LIST"
+
+  # Remove the local staging folder too
+  rm -rf "$DEST"
+
+  echo ""
+  echo "  Deleted : $deleted item(s)"
+  [ "$failed" -gt 0 ] && echo "  Failed  : $failed item(s) (check log)"
+  echo "  Local staging folder removed: $DEST"
+}
+
+# ── Run ───────────────────────────────────────────────────────────────────────
+print_header
+phase_collect
+
+if $CLEANUP; then
+  if phase_sync; then
+    phase_cleanup
+  else
+    echo "  Sync failed — local files were NOT deleted."
+  fi
+else
+  phase_sync || true
+  echo ""
+  echo "Tip: run with --cleanup to also delete local originals after syncing:"
+  echo "  bash collect_semester.sh --cleanup"
+fi
+
 echo ""
 echo "========================================"
-echo "  Done!"
-echo "  Items copied  : $FOUND"
-echo "  Date-skipped  : $SKIPPED (see log)"
-echo "  Output folder : $DEST"
-echo "  Log file      : $LOG"
+echo "  All done!"
 echo "========================================"
-echo ""
-echo "Next step: plug in your external SSD and run:"
-echo "  rsync -av --progress \"$DEST/\" /Volumes/X10 Pro/Y2S2_Semester_Backup/"
 echo ""
