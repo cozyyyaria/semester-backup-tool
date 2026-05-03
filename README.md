@@ -34,7 +34,8 @@ bash collect_semester.sh --setup
 
 ### To Cancel the setup prompts
 
-```Ctrl + C
+```bash
+Ctrl + C
 ```
 
 ---
