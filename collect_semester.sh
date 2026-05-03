@@ -67,30 +67,10 @@ if [ -f "$CONF" ]; then
   BACKUP_FOLDER_NAME="${SEMESTER_LABEL}_Semester_Backup"
 fi
 
-# ── Known top-level project folders to always include ────────────────────────
-KNOWN_FOLDERS=(
-  "comp2080-project"
-  "comp2152-termproject"
-  "comp2152_assignment2"
-  "schoolwork"
-  "afterthebeep_project"
-  "2147"
-  "goodbehaviour"
-  "valentines_2026"
-  "portfolio"
-)
-
-# ── Known Desktop folders to always include ───────────────────────────────────
-DESKTOP_FOLDERS=(
-  "COMP2139-ICE"
-  "Afterthebeep proj"
-  "Website Project 2025"
-  "assignment3"
-  "comp1202"
-  "lab_wk4"
-  "2025"
-  "assignment2comp1239"
-)
+# ── Extra folders to always include (populated by --setup via EXTRA_NAMES) ────
+# Add your own folder names here, or use --setup to configure them.
+KNOWN_FOLDERS=()
+DESKTOP_FOLDERS=()
 
 # ── Internal config ───────────────────────────────────────────────────────────
 HOME_DIR="$HOME"
